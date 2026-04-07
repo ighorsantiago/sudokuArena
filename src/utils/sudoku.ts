@@ -117,7 +117,135 @@ export function generatePuzzle(difficulty: Difficulty): {
     return { puzzle, solution };
 }
 
-// ─── Validação ───────────────────────────────────────────────────────────────
+// ─── Dicas ───────────────────────────────────────────────────────────────────
+
+export interface Hint {
+    row: number;
+    col: number;
+    value: number;
+    explanation: string;
+}
+
+function getCandidates(board: Board, row: number, col: number): number[] {
+    return [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => isValid(board, row, col, n));
+}
+
+const BLOCK_NAMES: Record<number, string> = {
+    0: 'superior esquerdo', 1: 'superior central', 2: 'superior direito',
+    3: 'central esquerdo', 4: 'central', 5: 'central direito',
+    6: 'inferior esquerdo', 7: 'inferior central', 8: 'inferior direito',
+};
+
+function blockIndex(row: number, col: number): number {
+    return Math.floor(row / 3) * 3 + Math.floor(col / 3);
+}
+
+export function findHint(board: Board, solution: Board): Hint | null {
+    // Prioridade 1: célula com único candidato possível
+    for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+            if (board[row][col] !== null) continue;
+            const candidates = getCandidates(board, row, col);
+            if (candidates.length === 1) {
+                const value = candidates[0];
+                return {
+                    row, col, value,
+                    explanation:
+                        `A célula da linha ${row + 1}, coluna ${col + 1} só pode ser o ${value}.\n\n` +
+                        `Os outros ${8} números já aparecem na mesma linha, coluna ou bloco 3×3.`,
+                };
+            }
+        }
+    }
+
+    // Prioridade 2: único na linha
+    for (let row = 0; row < 9; row++) {
+        for (let num = 1; num <= 9; num++) {
+            const positions = [];
+            for (let col = 0; col < 9; col++) {
+                if (board[row][col] === null && isValid(board, row, col, num)) {
+                    positions.push(col);
+                }
+            }
+            if (positions.length === 1) {
+                const col = positions[0];
+                if (board[row][col] !== null) continue;
+                return {
+                    row, col, value: num,
+                    explanation:
+                        `O número ${num} só pode ir na coluna ${col + 1} dentro da linha ${row + 1}.\n\n` +
+                        `Todas as outras células da linha já têm restrições que impedem o ${num}.`,
+                };
+            }
+        }
+    }
+
+    // Prioridade 3: único na coluna
+    for (let col = 0; col < 9; col++) {
+        for (let num = 1; num <= 9; num++) {
+            const positions = [];
+            for (let row = 0; row < 9; row++) {
+                if (board[row][col] === null && isValid(board, row, col, num)) {
+                    positions.push(row);
+                }
+            }
+            if (positions.length === 1) {
+                const row = positions[0];
+                if (board[row][col] !== null) continue;
+                return {
+                    row, col, value: num,
+                    explanation:
+                        `O número ${num} só pode ir na linha ${row + 1} dentro da coluna ${col + 1}.\n\n` +
+                        `Todas as outras células da coluna já têm restrições que impedem o ${num}.`,
+                };
+            }
+        }
+    }
+
+    // Prioridade 4: único no bloco 3x3
+    for (let block = 0; block < 9; block++) {
+        const blockRow = Math.floor(block / 3) * 3;
+        const blockCol = (block % 3) * 3;
+        for (let num = 1; num <= 9; num++) {
+            const positions: { row: number; col: number }[] = [];
+            for (let r = blockRow; r < blockRow + 3; r++) {
+                for (let c = blockCol; c < blockCol + 3; c++) {
+                    if (board[r][c] === null && isValid(board, r, c, num)) {
+                        positions.push({ row: r, col: c });
+                    }
+                }
+            }
+            if (positions.length === 1) {
+                const { row, col } = positions[0];
+                if (board[row][col] !== null) continue;
+                return {
+                    row, col, value: num,
+                    explanation:
+                        `O número ${num} só pode ir na linha ${row + 1}, coluna ${col + 1} ` +
+                        `dentro do bloco ${BLOCK_NAMES[blockIndex(row, col)]}.\n\n` +
+                        `Todas as outras células do bloco já têm restrições que impedem o ${num}.`,
+                };
+            }
+        }
+    }
+
+    // Fallback: revelar qualquer célula vazia pela solução
+    for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+            if (board[row][col] === null) {
+                const value = solution[row][col]!;
+                return {
+                    row, col, value,
+                    explanation:
+                        `A célula da linha ${row + 1}, coluna ${col + 1} deve ser preenchida com o ${value}.`,
+                };
+            }
+        }
+    }
+
+    return null;
+}
+
 
 export function isCellValid(
     board: Board,

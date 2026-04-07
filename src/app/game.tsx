@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import {
     Modal,
     StyleSheet,
@@ -23,6 +23,8 @@ export default function GameScreen() {
         board,
         notes,
         isNotesMode,
+        hintsLeft,
+        pendingHint,
         selectedCell,
         errors,
         maxErrors,
@@ -35,6 +37,9 @@ export default function GameScreen() {
         eraseCell,
         undo,
         toggleNotesMode,
+        requestHint,
+        applyHint,
+        dismissHint,
         getCellState,
         isRelatedCell,
         isSameNumber,
@@ -94,9 +99,28 @@ export default function GameScreen() {
                     onUndo={undo}
                     isNotesMode={isNotesMode}
                     onToggleNotes={toggleNotesMode}
+                    hintsLeft={hintsLeft}
+                    onHint={requestHint}
                 />
 
             </View>
+
+            {/* Modal de dica */}
+            <Modal visible={!!pendingHint} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalBox}>
+                        <Text style={styles.modalEmoji}>💡</Text>
+                        <Text style={styles.modalTitle}>DICA</Text>
+                        <Text style={styles.hintExplanation}>{pendingHint?.explanation}</Text>
+                        <TouchableOpacity
+                            style={styles.modalButtonPrimary}
+                            onPress={applyHint}
+                        >
+                            <Text style={styles.modalButtonPrimaryText}>ENTENDIDO</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Modal de vitória */}
             <Modal visible={isComplete} transparent animationType="fade">
@@ -202,7 +226,14 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
 
-    // Stats no modal
+    hintExplanation: {
+        color: Colors.text,
+        fontSize: FontSizes.sm,
+        textAlign: 'center',
+        lineHeight: 22,
+        paddingHorizontal: Spacing.sm,
+        marginVertical: Spacing.sm,
+    },
     modalStats: {
         flexDirection: 'row',
         backgroundColor: Colors.background,

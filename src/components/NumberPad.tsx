@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors, FontSizes, Spacing } from '../constants/theme';
 
@@ -12,9 +11,11 @@ interface NumberPadProps {
     onUndo: () => void;
     isNotesMode: boolean;
     onToggleNotes: () => void;
+    hintsLeft: number;
+    onHint: () => void;
 }
 
-export function NumberPad({ onNumber, onErase, onUndo, isNotesMode, onToggleNotes }: NumberPadProps) {
+export function NumberPad({ onNumber, onErase, onUndo, isNotesMode, onToggleNotes, hintsLeft, onHint }: NumberPadProps) {
     return (
         <View style={styles.container}>
 
@@ -51,9 +52,25 @@ export function NumberPad({ onNumber, onErase, onUndo, isNotesMode, onToggleNote
                 </TouchableOpacity>
 
                 {/* Dica */}
-                <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
-                    <Ionicons name="bulb-outline" size={26} color={Colors.textMuted} />
-                    <Text style={styles.actionLabel}>Dica</Text>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={onHint}
+                    activeOpacity={hintsLeft > 0 ? 0.7 : 1}
+                    disabled={hintsLeft === 0}
+                >
+                    <View style={styles.iconWithBadge}>
+                        <Ionicons
+                            name="bulb-outline"
+                            size={26}
+                            color={hintsLeft > 0 ? Colors.textMuted : Colors.textDim}
+                        />
+                        <View style={styles.hintBadge}>
+                            <Text style={styles.badgeText}>{hintsLeft}</Text>
+                        </View>
+                    </View>
+                    <Text style={[styles.actionLabel, hintsLeft === 0 && styles.actionLabelDim]}>
+                        Dica
+                    </Text>
                 </TouchableOpacity>
 
             </View>
@@ -129,7 +146,18 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
 
-    // Números
+    hintBadge: {
+        position: 'absolute',
+        top: -6,
+        right: -10,
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        borderRadius: 4,
+    },
+    actionLabelDim: {
+        color: Colors.textDim,
+    },
     numbersRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',

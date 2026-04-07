@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Board,
     Difficulty,
+    findHint,
     generatePuzzle,
     getRelatedCells,
+    Hint,
     isBoardComplete,
     isCellValid,
 } from '../utils/sudoku';
@@ -29,6 +31,8 @@ export interface GameState {
     initialBoard: Board;
     notes: Notes;
     history: { board: Board; notes: Notes } | null;
+    hintsLeft: number;
+    pendingHint: Hint | null;
     isNotesMode: boolean;
     selectedCell: { row: number; col: number } | null;
     errors: number;
@@ -47,6 +51,8 @@ export function useSudoku() {
         initialBoard: Array.from({ length: 9 }, () => Array(9).fill(null)),
         notes: emptyNotes(),
         history: null,
+        hintsLeft: 3,
+        pendingHint: null,
         isNotesMode: false,
         selectedCell: null,
         errors: 0,
@@ -85,6 +91,8 @@ export function useSudoku() {
             initialBoard: puzzle.map(row => [...row]),
             notes: emptyNotes(),
             history: null,
+            hintsLeft: 3,
+            pendingHint: null,
             isNotesMode: false,
             selectedCell: null,
             errors: 0,
@@ -213,6 +221,53 @@ export function useSudoku() {
         });
     }, []);
 
+    // ─── Dicas ───────────────────────────────────────────────────────────────────
+
+    const requestHint = useCallback(() => {
+        setState(prev => {
+            if (prev.hintsLeft <= 0) return prev;
+            if (prev.isComplete || prev.isGameOver) return prev;
+            const hint = findHint(prev.board, prev.solution);
+            if (!hint) return prev;
+            return { ...prev, pendingHint: hint, hintsLeft: prev.hintsLeft - 1 };
+        });
+    }, []);
+
+    const applyHint = useCallback(() => {
+        setState(prev => {
+            if (!prev.pendingHint) return prev;
+            const { row, col, value } = prev.pendingHint;
+            const newBoard: Board = prev.board.map(r => [...r]);
+            const newInitialBoard: Board = prev.initialBoard.map(r => [...r]);
+            const newNotes = cloneNotes(prev.notes);
+
+            newBoard[row][col] = value;
+            newInitialBoard[row][col] = value;
+            newNotes[row][col] = new Set();
+
+            const related = getRelatedCells(row, col);
+            for (const { row: rr, col: rc } of related) {
+                newNotes[rr][rc].delete(value);
+            }
+            const complete = isBoardComplete(newBoard, prev.solution);
+            return {
+                ...prev,
+                board: newBoard,
+                initialBoard: newInitialBoard,
+                notes: newNotes,
+                pendingHint: null,
+                history: null,
+                selectedCell: { row, col },
+                isComplete: complete,
+                isTimerRunning: !complete,
+            };
+        });
+    }, []);
+
+    const dismissHint = useCallback(() => {
+        setState(prev => ({ ...prev, pendingHint: null }));
+    }, []);
+
     // ─── Desfazer ────────────────────────────────────────────────────────────────
 
     const undo = useCallback(() => {
@@ -274,6 +329,9 @@ export function useSudoku() {
         eraseCell,
         undo,
         toggleNotesMode,
+        requestHint,
+        applyHint,
+        dismissHint,
         getCellState,
         isRelatedCell,
         isSameNumber,
