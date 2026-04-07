@@ -14,8 +14,8 @@ export const Colors = {
     border: '#C9A84C',
     borderSubtle: '#2A2D40',
 
-    selectedCell: '#2A2450',
-    highlightCell: '#1E2038',
+    selectedCell: '#3D2F7A',
+    highlightCell: '#252840',
     fixedCell: '#1A1D2E',
     errorCell: '#3D1A1A',
 };

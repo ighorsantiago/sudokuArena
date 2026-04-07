@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors, FontSizes, Spacing } from '../constants/theme';
 import { Difficulty } from '../utils/sudoku';

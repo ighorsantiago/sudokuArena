@@ -1,18 +1,63 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSizes, Radius, Spacing } from '../constants/theme';
+import { Colors, FontSizes, Spacing } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
-const PAD_SIZE = (width - 32 - Spacing.sm * 8) / 9;
+const NUM_SIZE = (width - 32 - Spacing.sm * 8) / 9;
 
 interface NumberPadProps {
     onNumber: (num: number) => void;
     onErase: () => void;
+    onUndo: () => void;
+    isNotesMode: boolean;
+    onToggleNotes: () => void;
 }
 
-export function NumberPad({ onNumber, onErase }: NumberPadProps) {
+export function NumberPad({ onNumber, onErase, onUndo, isNotesMode, onToggleNotes }: NumberPadProps) {
     return (
         <View style={styles.container}>
+
+            {/* Linha de ações */}
+            <View style={styles.actionsRow}>
+
+                {/* Desfazer */}
+                <TouchableOpacity style={styles.actionButton} onPress={onUndo} activeOpacity={0.7}>
+                    <Ionicons name="arrow-undo-outline" size={26} color={Colors.textMuted} />
+                    <Text style={styles.actionLabel}>Desfazer</Text>
+                </TouchableOpacity>
+
+                {/* Apagar */}
+                <TouchableOpacity style={styles.actionButton} onPress={onErase} activeOpacity={0.7}>
+                    <Ionicons name="backspace-outline" size={26} color={Colors.textMuted} />
+                    <Text style={styles.actionLabel}>Apagar</Text>
+                </TouchableOpacity>
+
+                {/* Anotações */}
+                <TouchableOpacity style={styles.actionButton} onPress={onToggleNotes} activeOpacity={0.7}>
+                    <View style={styles.iconWithBadge}>
+                        <Ionicons
+                            name="pencil-outline"
+                            size={26}
+                            color={isNotesMode ? Colors.secondary : Colors.textMuted}
+                        />
+                        <View style={[styles.badge, isNotesMode ? styles.badgeOn : styles.badgeOff]}>
+                            <Text style={styles.badgeText}>{isNotesMode ? 'ON' : 'OFF'}</Text>
+                        </View>
+                    </View>
+                    <Text style={[styles.actionLabel, isNotesMode && styles.actionLabelActive]}>
+                        Anotações
+                    </Text>
+                </TouchableOpacity>
+
+                {/* Dica */}
+                <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+                    <Ionicons name="bulb-outline" size={26} color={Colors.textMuted} />
+                    <Text style={styles.actionLabel}>Dica</Text>
+                </TouchableOpacity>
+
+            </View>
+
             {/* Números 1–9 */}
             <View style={styles.numbersRow}>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
@@ -20,21 +65,13 @@ export function NumberPad({ onNumber, onErase }: NumberPadProps) {
                         key={num}
                         style={styles.numberButton}
                         onPress={() => onNumber(num)}
-                        activeOpacity={0.7}
+                        activeOpacity={0.6}
                     >
                         <Text style={styles.numberText}>{num}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
 
-            {/* Botão apagar */}
-            <TouchableOpacity
-                style={styles.eraseButton}
-                onPress={onErase}
-                activeOpacity={0.7}
-            >
-                <Text style={styles.eraseText}>⌫  Apagar</Text>
-            </TouchableOpacity>
         </View>
     );
 }
@@ -42,7 +79,54 @@ export function NumberPad({ onNumber, onErase }: NumberPadProps) {
 const styles = StyleSheet.create({
     container: {
         paddingHorizontal: Spacing.lg,
-        gap: Spacing.md,
+        gap: Spacing.lg,
+    },
+
+    // Ações
+    actionsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: Spacing.sm,
+    },
+    actionButton: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    iconWithBadge: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    actionLabel: {
+        color: Colors.textMuted,
+        fontSize: FontSizes.xs,
+        letterSpacing: 0.5,
+    },
+    actionLabelActive: {
+        color: Colors.secondary,
+    },
+
+    // Badge ON/OFF
+    badge: {
+        position: 'absolute',
+        top: -6,
+        right: -14,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 4,
+    },
+    badgeOn: {
+        backgroundColor: Colors.secondary,
+    },
+    badgeOff: {
+        backgroundColor: Colors.textDim,
+    },
+    badgeText: {
+        color: Colors.text,
+        fontSize: 8,
+        fontWeight: 'bold',
+        letterSpacing: 0.5,
     },
 
     // Números
@@ -51,35 +135,13 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     numberButton: {
-        width: PAD_SIZE,
-        height: PAD_SIZE * 1.3,
-        backgroundColor: Colors.surface,
-        borderRadius: Radius.sm,
-        borderWidth: 1,
-        borderColor: Colors.borderSubtle,
+        width: NUM_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
     },
     numberText: {
         color: Colors.primary,
-        fontSize: FontSizes.xl,
+        fontSize: FontSizes.xxxl,
         fontWeight: 'bold',
-    },
-
-    // Apagar
-    eraseButton: {
-        height: 48,
-        backgroundColor: Colors.surface,
-        borderRadius: Radius.md,
-        borderWidth: 1,
-        borderColor: Colors.borderSubtle,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    eraseText: {
-        color: Colors.textMuted,
-        fontSize: FontSizes.md,
-        fontWeight: '600',
-        letterSpacing: 1,
     },
 });
