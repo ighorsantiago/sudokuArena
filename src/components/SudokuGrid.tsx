@@ -111,6 +111,7 @@ function getCellBackground(
     if (cellState === 'error') return { backgroundColor: Colors.errorCell };
     if (isSame) return { backgroundColor: Colors.selectedCell };
     if (isRelated) return { backgroundColor: Colors.highlightCell };
+    if (cellState === 'hint') return { backgroundColor: Colors.hintCell };
     if (cellState === 'fixed') return { backgroundColor: Colors.fixedCell };
     return { backgroundColor: Colors.surface };
 }
@@ -121,6 +122,7 @@ function getCellTextStyle(
     isSame: boolean
 ) {
     if (cellState === 'error') return { color: Colors.error };
+    if (cellState === 'hint') return { color: Colors.primary, fontWeight: '700' as const };
     if (cellState === 'fixed') return { color: Colors.text, fontWeight: '700' as const };
     if (isSelected || isSame) return { color: Colors.secondary };
     return { color: Colors.secondary };

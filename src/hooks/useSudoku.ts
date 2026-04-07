@@ -10,7 +10,7 @@ import {
     isCellValid,
 } from '../utils/sudoku';
 
-export type CellState = 'fixed' | 'empty' | 'filled' | 'error';
+export type CellState = 'fixed' | 'empty' | 'filled' | 'error' | 'hint';
 
 // Anotações: matriz 9x9 onde cada célula tem um Set de números candidatos
 export type Notes = Set<number>[][];
@@ -19,6 +19,10 @@ function emptyNotes(): Notes {
     return Array.from({ length: 9 }, () =>
         Array.from({ length: 9 }, () => new Set<number>())
     );
+}
+
+function emptyHintCells(): boolean[][] {
+    return Array.from({ length: 9 }, () => Array(9).fill(false));
 }
 
 function cloneNotes(notes: Notes): Notes {
@@ -30,6 +34,7 @@ export interface GameState {
     solution: Board;
     initialBoard: Board;
     notes: Notes;
+    hintCells: boolean[][];
     history: { board: Board; notes: Notes } | null;
     hintsLeft: number;
     pendingHint: Hint | null;
@@ -50,6 +55,7 @@ export function useSudoku() {
         solution: Array.from({ length: 9 }, () => Array(9).fill(null)),
         initialBoard: Array.from({ length: 9 }, () => Array(9).fill(null)),
         notes: emptyNotes(),
+        hintCells: emptyHintCells(),
         history: null,
         hintsLeft: 3,
         pendingHint: null,
@@ -90,6 +96,7 @@ export function useSudoku() {
             solution,
             initialBoard: puzzle.map(row => [...row]),
             notes: emptyNotes(),
+            hintCells: emptyHintCells(),
             history: null,
             hintsLeft: 3,
             pendingHint: null,
@@ -240,10 +247,12 @@ export function useSudoku() {
             const newBoard: Board = prev.board.map(r => [...r]);
             const newInitialBoard: Board = prev.initialBoard.map(r => [...r]);
             const newNotes = cloneNotes(prev.notes);
+            const newHintCells = prev.hintCells.map(r => [...r]);
 
             newBoard[row][col] = value;
             newInitialBoard[row][col] = value;
             newNotes[row][col] = new Set();
+            newHintCells[row][col] = true;
 
             const related = getRelatedCells(row, col);
             for (const { row: rr, col: rc } of related) {
@@ -255,6 +264,7 @@ export function useSudoku() {
                 board: newBoard,
                 initialBoard: newInitialBoard,
                 notes: newNotes,
+                hintCells: newHintCells,
                 pendingHint: null,
                 history: null,
                 selectedCell: { row, col },
@@ -287,13 +297,14 @@ export function useSudoku() {
 
     const getCellState = useCallback(
         (row: number, col: number): CellState => {
+            if (state.hintCells[row][col]) return 'hint';
             if (state.initialBoard[row][col] !== null) return 'fixed';
             const value = state.board[row][col];
             if (value === null) return 'empty';
             if (!isCellValid(state.initialBoard, row, col, value)) return 'error';
             return 'filled';
         },
-        [state.board, state.initialBoard]
+        [state.board, state.initialBoard, state.hintCells]
     );
 
     const isRelatedCell = useCallback(

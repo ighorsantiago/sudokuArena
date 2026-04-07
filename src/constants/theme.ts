@@ -15,6 +15,7 @@ export const Colors = {
     borderSubtle: '#2A2D40',
 
     selectedCell: '#3D2F7A',
+    hintCell: '#C9A84C33',  // dourado translúcido
     highlightCell: '#252840',
     fixedCell: '#1A1D2E',
     errorCell: '#3D1A1A',
