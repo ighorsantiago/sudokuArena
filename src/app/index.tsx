@@ -1,210 +1,258 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
     Modal,
-    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdBanner } from '../components/AdBanner';
+import { GameHeader } from '../components/GameHeader';
+import { NumberPad } from '../components/NumberPad';
+import { SudokuGrid } from '../components/SudokuGrid';
 import { Colors, FontSizes, Radius, Spacing } from '../constants/theme';
+import { useInterstitialAd, useRewardedAd } from '../hooks/useAdmob';
+import { useHaptics } from '../hooks/useHaptics';
 import { useStats } from '../hooks/useStats';
+import { useSudoku } from '../hooks/useSudoku';
 import { Difficulty } from '../utils/sudoku';
 
-const DIFFICULTIES: { key: Difficulty; label: string }[][] = [
-    [
-        { key: 'beginner', label: 'Iniciante' },
-        { key: 'easy', label: 'Fácil' },
-        { key: 'medium', label: 'Médio' },
-    ],
-    [
-        { key: 'hard', label: 'Difícil' },
-        { key: 'expert', label: 'Expert' },
-        { key: 'master', label: 'Mestre' },
-    ],
-];
-
-const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-    beginner: 'Iniciante',
-    easy: 'Fácil',
-    medium: 'Médio',
-    hard: 'Difícil',
-    expert: 'Expert',
-    master: 'Mestre',
-};
-
-export default function HomeScreen() {
+export default function GameScreen() {
     const router = useRouter();
-    const [selected, setSelected] = useState<Difficulty>('medium');
-    const [showStats, setShowStats] = useState(false);
-    const { stats, getWinRate, formatBestTime, resetStats, reloadStats } = useStats();
+    const { difficulty } = useLocalSearchParams<{ difficulty: Difficulty }>();
 
-    useFocusEffect(
+    const {
+        board,
+        notes,
+        isNotesMode,
+        activeNumber,
+        hintsLeft,
+        pendingHint,
+        selectedCell,
+        errors,
+        maxErrors,
+        isComplete,
+        isGameOver,
+        elapsedSeconds,
+        startGame,
+        selectCell,
+        insertNumber,
+        eraseCell,
+        undo,
+        toggleNotesMode,
+        toggleActiveNumber,
+        requestHint,
+        applyHint,
+        dismissHint,
+        continueAfterGameOver,
+        getCellState,
+        isRelatedCell,
+        isSameNumber,
+        getNumberCount,
+        findFirstCellForNumber,
+        formatTime,
+        difficulty: currentDifficulty,
+        isTimerRunning,
+    } = useSudoku();
+
+    const { recordGameStarted, recordWin } = useStats();
+    const { vibrateError, vibrateSuccess } = useHaptics();
+    const [isNewRecord, setIsNewRecord] = useState(false);
+
+    const { onGameStarted } = useInterstitialAd();
+
+    // Rewarded para continuar após game over
+    const { showAd: showContinueAd, loaded: continueAdLoaded } = useRewardedAd(
         useCallback(() => {
-            reloadStats();
-        }, [reloadStats])
+            continueAfterGameOver();
+        }, [continueAfterGameOver])
     );
 
-    function handlePlay() {
-        router.push({ pathname: '/game', params: { difficulty: selected } });
+    // Rewarded para dica extra
+    const { showAd: showHintAd, loaded: hintAdLoaded } = useRewardedAd(
+        useCallback(() => {
+            requestHint();
+        }, [requestHint])
+    );
+
+    useEffect(() => {
+        const diff = difficulty ?? 'medium';
+        startGame(diff);
+        recordGameStarted(diff);
+        onGameStarted();
+    }, []);
+
+    useEffect(() => {
+        if (errors > 0) vibrateError();
+    }, [errors]);
+
+    useEffect(() => {
+        console.log('[Game] isComplete mudou:', isComplete, 'errors:', errors, 'difficulty:', currentDifficulty);
+        if (isComplete) {
+            vibrateSuccess();
+            console.log('[Game] Chamando recordWin...');
+            recordWin(currentDifficulty, elapsedSeconds, errors).then(newRecord => {
+                console.log('[Game] recordWin retornou, isNewRecord:', newRecord);
+                setIsNewRecord(newRecord);
+            });
+        }
+    }, [isComplete]);
+
+    useEffect(() => {
+        if (isGameOver) vibrateError();
+    }, [isGameOver]);
+
+    function handleBack() {
+        router.back();
+    }
+
+    function handleRestart() {
+        setIsNewRecord(false);
+        startGame(currentDifficulty);
+        onGameStarted();
+    }
+
+    function handleNewGame() {
+        router.back();
+    }
+
+    function handleContinue() {
+        if (continueAdLoaded) {
+            showContinueAd();
+        } else {
+            continueAfterGameOver();
+        }
     }
 
     return (
         <SafeAreaView style={styles.safe}>
             <View style={styles.container}>
 
-                {/* Logo */}
-                <View style={styles.logoArea}>
-                    <View style={styles.gridPreview}>
-                        {Array.from({ length: 9 }).map((_, i) => (
-                            <View
-                                key={i}
-                                style={[
-                                    styles.previewCell,
-                                    [2, 4, 6].includes(i) && styles.previewCellFilled,
-                                ]}
-                            >
-                                {[2, 4, 6].includes(i) && (
-                                    <Text style={styles.previewNumber}>
-                                        {i === 2 ? '9' : i === 4 ? '5' : '3'}
-                                    </Text>
-                                )}
-                            </View>
-                        ))}
-                    </View>
+                {/* Header */}
+                <GameHeader
+                    difficulty={currentDifficulty}
+                    errors={errors}
+                    maxErrors={maxErrors}
+                    elapsedSeconds={elapsedSeconds}
+                    isTimerRunning={isTimerRunning}
+                    formatTime={formatTime}
+                    onBack={handleBack}
+                />
 
-                    <View style={styles.titleDivider} />
-                    <Text style={styles.titleMain}>SUDOKU</Text>
-                    <Text style={styles.titleSub}>ARENA</Text>
-                    <View style={styles.titleDivider} />
+                {/* Grid */}
+                <View style={styles.gridWrapper}>
+                    <SudokuGrid
+                        board={board}
+                        notes={notes}
+                        selectedCell={selectedCell}
+                        getCellState={getCellState}
+                        isRelatedCell={isRelatedCell}
+                        isSameNumber={isSameNumber}
+                        onSelectCell={selectCell}
+                    />
                 </View>
 
-                {/* Seleção de dificuldade */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>ESCOLHA A DIFICULDADE</Text>
+                {/* NumberPad */}
+                <NumberPad
+                    onNumber={insertNumber}
+                    onErase={eraseCell}
+                    onUndo={undo}
+                    isNotesMode={isNotesMode}
+                    onToggleNotes={toggleNotesMode}
+                    hintsLeft={hintsLeft}
+                    onHint={hintsLeft > 0 ? requestHint : showHintAd}
+                    hintAdAvailable={hintsLeft === 0 && hintAdLoaded}
+                    activeNumber={activeNumber}
+                    onToggleActiveNumber={toggleActiveNumber}
+                    getNumberCount={getNumberCount}
+                />
 
-                    <View style={styles.difficultyGrid}>
-                        {DIFFICULTIES.map((row, rowIndex) => (
-                            <View key={rowIndex} style={styles.difficultyRow}>
-                                {row.map(({ key, label }: { key: Difficulty; label: string }) => (
-                                    <TouchableOpacity
-                                        key={key}
-                                        style={[
-                                            styles.difficultyButton,
-                                            selected === key && styles.difficultyButtonActive,
-                                        ]}
-                                        onPress={() => setSelected(key)}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Text style={[
-                                            styles.difficultyLabel,
-                                            selected === key && styles.difficultyLabelActive,
-                                        ]}>
-                                            {label}
-                                        </Text>
-                                        <View style={styles.bestTimeRow}>
-                                            <Ionicons
-                                                name="trophy-outline"
-                                                size={10}
-                                                color={selected === key ? Colors.primary : Colors.textDim}
-                                            />
-                                            <Text style={[
-                                                styles.bestTimeText,
-                                                selected === key && styles.bestTimeTextActive,
-                                            ]}>
-                                                {formatBestTime(key)}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Botão jogar */}
-                <TouchableOpacity
-                    style={styles.playButton}
-                    onPress={handlePlay}
-                    activeOpacity={0.85}
-                >
-                    <Text style={styles.playButtonText}>JOGAR</Text>
-                </TouchableOpacity>
-
-                {/* Botão de estatísticas */}
-                <TouchableOpacity
-                    style={styles.statsButton}
-                    onPress={() => setShowStats(true)}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="bar-chart-outline" size={16} color={Colors.textMuted} />
-                    <Text style={styles.statsButtonText}>ESTATÍSTICAS</Text>
-                </TouchableOpacity>
-
-                {/* Rodapé */}
-                <Text style={styles.footer}>ARENA GAMES</Text>
+                {/* Banner */}
+                <AdBanner />
 
             </View>
 
-            {/* Modal de estatísticas */}
-            <Modal visible={showStats} transparent animationType="fade">
+            {/* Modal de dica */}
+            <Modal visible={!!pendingHint} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalBox}>
-
-                        <Text style={styles.modalTitle}>ESTATÍSTICAS</Text>
-
-                        <ScrollView style={styles.statsScroll} showsVerticalScrollIndicator={false}>
-                            {DIFFICULTIES.flat().map(({ key, label }: { key: Difficulty; label: string }) => (
-                                <View key={key} style={styles.statsSection}>
-                                    <Text style={styles.statsDiffLabel}>{label}</Text>
-
-                                    <View style={styles.statsGrid}>
-                                        <StatItem
-                                            label="Jogos"
-                                            value={String(stats[key].gamesStarted)}
-                                        />
-                                        <StatItem
-                                            label="Vitórias"
-                                            value={String(stats[key].gamesWon)}
-                                        />
-                                        <StatItem
-                                            label="Taxa"
-                                            value={`${getWinRate(key)}%`}
-                                        />
-                                        <StatItem
-                                            label="Perfeitas"
-                                            value={String(stats[key].perfectWins)}
-                                            highlight
-                                        />
-                                        <StatItem
-                                            label="Recorde"
-                                            value={formatBestTime(key)}
-                                            highlight
-                                            fullWidth
-                                        />
-                                    </View>
-                                </View>
-                            ))}
-                        </ScrollView>
-
+                        <Text style={styles.modalEmoji}>💡</Text>
+                        <Text style={styles.modalTitle}>DICA</Text>
+                        <Text style={styles.hintExplanation}>{pendingHint?.explanation}</Text>
                         <TouchableOpacity
                             style={styles.modalButtonPrimary}
-                            onPress={() => setShowStats(false)}
+                            onPress={applyHint}
                         >
-                            <Text style={styles.modalButtonText}>FECHAR</Text>
+                            <Text style={styles.modalButtonPrimaryText}>ENTENDIDO</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Modal de vitória */}
+            <Modal visible={isComplete} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalBox}>
+                        <Text style={styles.modalEmoji}>🏆</Text>
+                        <Text style={styles.modalTitle}>PARABÉNS!</Text>
+                        {isNewRecord && (
+                            <View style={styles.newRecordBadge}>
+                                <Ionicons name="trophy-outline" size={14} color={Colors.background} />
+                                <Text style={styles.newRecordText}>NOVO RECORDE!</Text>
+                            </View>
+                        )}
+                        <Text style={styles.modalSubtitle}>Puzzle concluído</Text>
+
+                        <View style={styles.modalStats}>
+                            <View style={styles.modalStatItem}>
+                                <Text style={styles.modalStatLabel}>Tempo</Text>
+                                <Text style={styles.modalStatValue}>{formatTime(elapsedSeconds)}</Text>
+                            </View>
+                            <View style={styles.modalDivider} />
+                            <View style={styles.modalStatItem}>
+                                <Text style={styles.modalStatLabel}>Erros</Text>
+                                <Text style={styles.modalStatValue}>{errors}/{maxErrors}</Text>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity style={styles.modalButtonPrimary} onPress={handleRestart}>
+                            <Text style={styles.modalButtonPrimaryText}>JOGAR NOVAMENTE</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.modalButtonReset}
-                            onPress={resetStats}
-                        >
-                            <Text style={styles.modalButtonResetText}>ZERAR ESTATÍSTICAS</Text>
+                        <TouchableOpacity style={styles.modalButtonSecondary} onPress={handleNewGame}>
+                            <Text style={styles.modalButtonSecondaryText}>MENU PRINCIPAL</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Modal de game over */}
+            <Modal visible={isGameOver} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalBox}>
+                        <Text style={styles.modalEmoji}>💀</Text>
+                        <Text style={[styles.modalTitle, styles.modalTitleError]}>GAME OVER</Text>
+                        <Text style={styles.modalSubtitle}>Você cometeu {maxErrors} erros</Text>
+
+                        <TouchableOpacity style={styles.modalButtonContinue} onPress={handleContinue}>
+                            <View style={styles.continueButtonContent}>
+                                <Ionicons name="play-circle-outline" size={20} color={Colors.background} />
+                                <Text style={styles.modalButtonContinueText}>CONTINUAR</Text>
+                                <Ionicons name="videocam-outline" size={16} color={Colors.background} />
+                            </View>
+                            <Text style={styles.continueSubtext}>Assista um anúncio para continuar</Text>
                         </TouchableOpacity>
 
+                        <TouchableOpacity style={styles.modalButtonPrimary} onPress={handleRestart}>
+                            <Text style={styles.modalButtonPrimaryText}>TENTAR NOVAMENTE</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.modalButtonSecondary} onPress={handleNewGame}>
+                            <Text style={styles.modalButtonSecondaryText}>MENU PRINCIPAL</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -213,31 +261,6 @@ export default function HomeScreen() {
     );
 }
 
-// ─── Componente auxiliar ──────────────────────────────────────────────────────
-
-function StatItem({
-    label,
-    value,
-    highlight = false,
-    fullWidth = false,
-}: {
-    label: string;
-    value: string;
-    highlight?: boolean;
-    fullWidth?: boolean;
-}) {
-    return (
-        <View style={[styles.statItem, fullWidth && styles.statItemFull]}>
-            <Text style={styles.statValue}>{value}</Text>
-            <Text style={[styles.statLabel, highlight && styles.statLabelHighlight]}>
-                {label}
-            </Text>
-        </View>
-    );
-}
-
-// ─── Estilos ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
     safe: {
         flex: 1,
@@ -245,167 +268,14 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
-        alignItems: 'center',
         justifyContent: 'space-evenly',
-        paddingHorizontal: Spacing.xl,
-        paddingVertical: Spacing.xxl,
+        paddingVertical: Spacing.sm,
+    },
+    gridWrapper: {
+        paddingHorizontal: Spacing.lg,
     },
 
-    // Logo
-    logoArea: {
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    gridPreview: {
-        width: 120,
-        height: 120,
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        borderWidth: 2,
-        borderColor: Colors.primary,
-        borderRadius: Radius.sm,
-        overflow: 'hidden',
-        marginBottom: Spacing.md,
-    },
-    previewCell: {
-        width: 40,
-        height: 40,
-        borderWidth: 0.5,
-        borderColor: Colors.borderSubtle,
-        backgroundColor: Colors.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    previewCellFilled: {
-        backgroundColor: Colors.selectedCell,
-    },
-    previewNumber: {
-        color: Colors.secondary,
-        fontSize: FontSizes.lg,
-        fontWeight: 'bold',
-    },
-    titleDivider: {
-        width: 200,
-        height: 1,
-        backgroundColor: Colors.primary,
-        marginVertical: Spacing.xs,
-    },
-    titleMain: {
-        color: Colors.primary,
-        fontSize: FontSizes.xxxl,
-        fontWeight: 'bold',
-        letterSpacing: 6,
-        lineHeight: FontSizes.xxxl * 1.1,
-    },
-    titleSub: {
-        color: Colors.secondary,
-        fontSize: FontSizes.xl,
-        fontWeight: 'bold',
-        letterSpacing: 10,
-    },
-
-    // Dificuldade
-    section: {
-        width: '100%',
-        gap: Spacing.md,
-        alignItems: 'center',
-    },
-    sectionLabel: {
-        color: Colors.textMuted,
-        fontSize: FontSizes.xs,
-        letterSpacing: 2,
-    },
-    difficultyGrid: {
-        width: '100%',
-        gap: Spacing.sm,
-    },
-    difficultyRow: {
-        flexDirection: 'row',
-        gap: Spacing.sm,
-    },
-    difficultyButton: {
-        flex: 1,
-        paddingVertical: Spacing.md,
-        backgroundColor: Colors.surface,
-        borderRadius: Radius.md,
-        borderWidth: 1,
-        borderColor: Colors.borderSubtle,
-        alignItems: 'center',
-        gap: 6,
-    },
-    difficultyButtonActive: {
-        borderColor: Colors.primary,
-        backgroundColor: Colors.selectedCell,
-    },
-    difficultyLabel: {
-        color: Colors.textMuted,
-        fontSize: FontSizes.sm,
-        fontWeight: 'bold',
-        letterSpacing: 1,
-    },
-    difficultyLabelActive: {
-        color: Colors.primary,
-    },
-    bestTimeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-    },
-    bestTimeText: {
-        color: Colors.textDim,
-        fontSize: FontSizes.xs,
-        fontWeight: '600',
-    },
-    bestTimeTextActive: {
-        color: Colors.primary,
-    },
-
-    // Jogar
-    playButton: {
-        width: '100%',
-        height: 56,
-        backgroundColor: Colors.primary,
-        borderRadius: Radius.lg,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    playButtonText: {
-        color: Colors.background,
-        fontSize: FontSizes.lg,
-        fontWeight: 'bold',
-        letterSpacing: 4,
-    },
-
-    // Stats button
-    statsButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.xs,
-    },
-    statsButtonText: {
-        color: Colors.textMuted,
-        fontSize: FontSizes.xs,
-        letterSpacing: 2,
-    },
-
-    modalButtonReset: {
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalButtonResetText: {
-        color: Colors.error,
-        fontSize: FontSizes.xs,
-        fontWeight: '600',
-        letterSpacing: 1,
-    },
-    footer: {
-        color: Colors.textDim,
-        fontSize: FontSizes.xs,
-        letterSpacing: 3,
-    },
-
-    // Modal
+    // Modal compartilhado
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.85)',
@@ -420,75 +290,134 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: Colors.primary,
         padding: Spacing.xl,
-        gap: Spacing.lg,
-        maxHeight: '85%',
+        alignItems: 'center',
+        gap: Spacing.md,
+    },
+    modalEmoji: {
+        fontSize: 56,
     },
     modalTitle: {
         color: Colors.primary,
-        fontSize: FontSizes.lg,
+        fontSize: FontSizes.xxl,
         fontWeight: 'bold',
         letterSpacing: 4,
-        textAlign: 'center',
     },
-    statsScroll: {
-        flexGrow: 0,
+    modalTitleError: {
+        color: Colors.error,
     },
-    statsSection: {
-        gap: Spacing.sm,
-        marginBottom: Spacing.lg,
-    },
-    statsDiffLabel: {
-        color: Colors.secondary,
+    modalSubtitle: {
+        color: Colors.textMuted,
         fontSize: FontSizes.sm,
+        letterSpacing: 1,
+    },
+    newRecordBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: Colors.primary,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.xs,
+        borderRadius: Radius.md,
+    },
+    newRecordText: {
+        color: Colors.background,
+        fontSize: FontSizes.xs,
         fontWeight: 'bold',
         letterSpacing: 2,
-        textTransform: 'uppercase',
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.borderSubtle,
-        paddingBottom: Spacing.xs,
     },
-    statsGrid: {
+
+    hintExplanation: {
+        color: Colors.text,
+        fontSize: FontSizes.sm,
+        textAlign: 'center',
+        lineHeight: 22,
+        paddingHorizontal: Spacing.sm,
+        marginVertical: Spacing.sm,
+    },
+    modalStats: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: Spacing.sm,
-    },
-    statItem: {
-        flex: 1,
-        minWidth: '40%',
         backgroundColor: Colors.background,
         borderRadius: Radius.md,
         padding: Spacing.md,
+        width: '100%',
+        justifyContent: 'center',
+        marginVertical: Spacing.sm,
+    },
+    modalStatItem: {
+        flex: 1,
         alignItems: 'center',
         gap: 4,
     },
-    statItemFull: {
-        minWidth: '100%',
-    },
-    statValue: {
-        color: Colors.text,
-        fontSize: FontSizes.xl,
-        fontWeight: 'bold',
-    },
-    statLabel: {
+    modalStatLabel: {
         color: Colors.textMuted,
         fontSize: FontSizes.xs,
         letterSpacing: 1,
         textTransform: 'uppercase',
     },
-    statLabelHighlight: {
-        color: Colors.primary,
+    modalStatValue: {
+        color: Colors.text,
+        fontSize: FontSizes.lg,
+        fontWeight: 'bold',
+    },
+    modalDivider: {
+        width: 1,
+        backgroundColor: Colors.borderSubtle,
+        marginHorizontal: Spacing.md,
+    },
+
+    // Botões do modal
+    modalButtonContinue: {
+        width: '100%',
+        backgroundColor: Colors.secondary,
+        borderRadius: Radius.md,
+        paddingVertical: Spacing.md,
+        alignItems: 'center',
+        gap: 4,
+    },
+    continueButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    modalButtonContinueText: {
+        color: Colors.background,
+        fontSize: FontSizes.sm,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+    },
+    continueSubtext: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: FontSizes.xs,
+        letterSpacing: 0.5,
     },
     modalButtonPrimary: {
+        width: '100%',
         height: 52,
         backgroundColor: Colors.primary,
         borderRadius: Radius.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    modalButtonText: {
+    modalButtonPrimaryText: {
         color: Colors.background,
         fontSize: FontSizes.sm,
         fontWeight: 'bold',
+        letterSpacing: 2,
+    },
+    modalButtonSecondary: {
+        width: '100%',
+        height: 52,
+        backgroundColor: 'transparent',
+        borderRadius: Radius.md,
+        borderWidth: 1,
+        borderColor: Colors.borderSubtle,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalButtonSecondaryText: {
+        color: Colors.textMuted,
+        fontSize: FontSizes.sm,
+        fontWeight: '600',
         letterSpacing: 2,
     },
 });

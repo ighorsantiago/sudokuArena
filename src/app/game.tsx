@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     Modal,
     StyleSheet,
@@ -9,10 +9,13 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdBanner } from '../components/AdBanner';
 import { GameHeader } from '../components/GameHeader';
 import { NumberPad } from '../components/NumberPad';
 import { SudokuGrid } from '../components/SudokuGrid';
 import { Colors, FontSizes, Radius, Spacing } from '../constants/theme';
+import { useInterstitialAd, useRewardedAd } from '../hooks/useAdMob';
+import { useHaptics } from '../hooks/useHaptics';
 import { useStats } from '../hooks/useStats';
 import { useSudoku } from '../hooks/useSudoku';
 import { Difficulty } from '../utils/sudoku';
@@ -44,6 +47,7 @@ export default function GameScreen() {
         requestHint,
         applyHint,
         dismissHint,
+        continueAfterGameOver,
         getCellState,
         isRelatedCell,
         isSameNumber,
@@ -55,17 +59,40 @@ export default function GameScreen() {
     } = useSudoku();
 
     const { recordGameStarted, recordWin } = useStats();
+    const { vibrateError, vibrateSuccess } = useHaptics();
     const [isNewRecord, setIsNewRecord] = useState(false);
+
+    const { onGameStarted } = useInterstitialAd();
+
+    // Rewarded para continuar após game over
+    const { showAd: showContinueAd, loaded: continueAdLoaded } = useRewardedAd(
+        useCallback(() => {
+            continueAfterGameOver();
+        }, [continueAfterGameOver])
+    );
+
+    // Rewarded para dica extra
+    const { showAd: showHintAd, loaded: hintAdLoaded } = useRewardedAd(
+        useCallback(() => {
+            requestHint();
+        }, [requestHint])
+    );
 
     useEffect(() => {
         const diff = difficulty ?? 'medium';
         startGame(diff);
         recordGameStarted(diff);
+        onGameStarted();
     }, []);
+
+    useEffect(() => {
+        if (errors > 0) vibrateError();
+    }, [errors]);
 
     useEffect(() => {
         console.log('[Game] isComplete mudou:', isComplete, 'errors:', errors, 'difficulty:', currentDifficulty);
         if (isComplete) {
+            vibrateSuccess();
             console.log('[Game] Chamando recordWin...');
             recordWin(currentDifficulty, elapsedSeconds, errors).then(newRecord => {
                 console.log('[Game] recordWin retornou, isNewRecord:', newRecord);
@@ -74,6 +101,10 @@ export default function GameScreen() {
         }
     }, [isComplete]);
 
+    useEffect(() => {
+        if (isGameOver) vibrateError();
+    }, [isGameOver]);
+
     function handleBack() {
         router.back();
     }
@@ -81,10 +112,19 @@ export default function GameScreen() {
     function handleRestart() {
         setIsNewRecord(false);
         startGame(currentDifficulty);
+        onGameStarted();
     }
 
     function handleNewGame() {
         router.back();
+    }
+
+    function handleContinue() {
+        if (continueAdLoaded) {
+            showContinueAd();
+        } else {
+            continueAfterGameOver();
+        }
     }
 
     return (
@@ -123,11 +163,15 @@ export default function GameScreen() {
                     isNotesMode={isNotesMode}
                     onToggleNotes={toggleNotesMode}
                     hintsLeft={hintsLeft}
-                    onHint={requestHint}
+                    onHint={hintsLeft > 0 ? requestHint : showHintAd}
+                    hintAdAvailable={hintsLeft === 0 && hintAdLoaded}
                     activeNumber={activeNumber}
                     onToggleActiveNumber={toggleActiveNumber}
                     getNumberCount={getNumberCount}
                 />
+
+                {/* Banner */}
+                <AdBanner />
 
             </View>
 
@@ -192,6 +236,15 @@ export default function GameScreen() {
                         <Text style={styles.modalEmoji}>💀</Text>
                         <Text style={[styles.modalTitle, styles.modalTitleError]}>GAME OVER</Text>
                         <Text style={styles.modalSubtitle}>Você cometeu {maxErrors} erros</Text>
+
+                        <TouchableOpacity style={styles.modalButtonContinue} onPress={handleContinue}>
+                            <View style={styles.continueButtonContent}>
+                                <Ionicons name="play-circle-outline" size={20} color={Colors.background} />
+                                <Text style={styles.modalButtonContinueText}>CONTINUAR</Text>
+                                <Ionicons name="videocam-outline" size={16} color={Colors.background} />
+                            </View>
+                            <Text style={styles.continueSubtext}>Assista um anúncio para continuar</Text>
+                        </TouchableOpacity>
 
                         <TouchableOpacity style={styles.modalButtonPrimary} onPress={handleRestart}>
                             <Text style={styles.modalButtonPrimaryText}>TENTAR NOVAMENTE</Text>
@@ -313,6 +366,30 @@ const styles = StyleSheet.create({
     },
 
     // Botões do modal
+    modalButtonContinue: {
+        width: '100%',
+        backgroundColor: Colors.secondary,
+        borderRadius: Radius.md,
+        paddingVertical: Spacing.md,
+        alignItems: 'center',
+        gap: 4,
+    },
+    continueButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    modalButtonContinueText: {
+        color: Colors.background,
+        fontSize: FontSizes.sm,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+    },
+    continueSubtext: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: FontSizes.xs,
+        letterSpacing: 0.5,
+    },
     modalButtonPrimary: {
         width: '100%',
         height: 52,

@@ -13,6 +13,7 @@ interface NumberPadProps {
     onToggleNotes: () => void;
     hintsLeft: number;
     onHint: () => void;
+    hintAdAvailable: boolean;
     activeNumber: number | null;
     onToggleActiveNumber: (num: number) => void;
     getNumberCount: (num: number) => number;
@@ -26,6 +27,7 @@ export function NumberPad({
     onToggleNotes,
     hintsLeft,
     onHint,
+    hintAdAvailable,
     activeNumber,
     onToggleActiveNumber,
     getNumberCount,
@@ -73,21 +75,26 @@ export function NumberPad({
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={onHint}
-                    activeOpacity={hintsLeft > 0 ? 0.7 : 1}
-                    disabled={hintsLeft === 0}
+                    activeOpacity={hintsLeft > 0 || hintAdAvailable ? 0.7 : 1}
+                    disabled={hintsLeft === 0 && !hintAdAvailable}
                 >
                     <View style={styles.iconWithBadge}>
                         <Ionicons
-                            name="bulb-outline"
+                            name={hintAdAvailable ? 'videocam-outline' : 'bulb-outline'}
                             size={26}
-                            color={hintsLeft > 0 ? Colors.textMuted : Colors.textDim}
+                            color={hintsLeft > 0 || hintAdAvailable ? Colors.textMuted : Colors.textDim}
                         />
-                        <View style={styles.hintBadge}>
-                            <Text style={styles.badgeText}>{hintsLeft}</Text>
-                        </View>
+                        {hintsLeft > 0 && (
+                            <View style={styles.hintBadge}>
+                                <Text style={styles.badgeText}>{hintsLeft}</Text>
+                            </View>
+                        )}
                     </View>
-                    <Text style={[styles.actionLabel, hintsLeft === 0 && styles.actionLabelDim]}>
-                        Dica
+                    <Text style={[
+                        styles.actionLabel,
+                        hintsLeft === 0 && !hintAdAvailable && styles.actionLabelDim,
+                    ]}>
+                        {hintAdAvailable ? 'Ver anúncio' : 'Dica'}
                     </Text>
                 </TouchableOpacity>
 

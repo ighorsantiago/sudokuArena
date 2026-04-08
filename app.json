@@ -29,10 +29,23 @@
       "favicon": "./assets/icon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3386298011801498~9628071057",
+          "iosAppId": "ca-app-pub-3386298011801498~9628071057"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f597ba40-0f1a-4959-ab94-79cf8fa64db2"
+      }
     }
   }
 }

@@ -371,6 +371,26 @@ export function useSudoku() {
         setState(prev => ({ ...prev, pendingHint: null }));
     }, []);
 
+    // ─── Continuar após game over ────────────────────────────────────────────────
+
+    const continueAfterGameOver = useCallback(() => {
+        setState(prev => {
+            if (!prev.isGameOver) return prev;
+            // Restaura o snapshot anterior (desfaz o último erro)
+            const restoredBoard = prev.history ? prev.history.board : prev.board;
+            const restoredNotes = prev.history ? prev.history.notes : prev.notes;
+            return {
+                ...prev,
+                board: restoredBoard,
+                notes: restoredNotes,
+                errors: prev.maxErrors - 1, // volta para 2 erros
+                isGameOver: false,
+                isTimerRunning: true,
+                history: null,
+            };
+        });
+    }, []);
+
     // ─── Desfazer ────────────────────────────────────────────────────────────────
 
     const undo = useCallback(() => {
@@ -471,6 +491,7 @@ export function useSudoku() {
         requestHint,
         applyHint,
         dismissHint,
+        continueAfterGameOver,
         getCellState,
         isRelatedCell,
         isSameNumber,
