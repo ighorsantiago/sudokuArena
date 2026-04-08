@@ -14,7 +14,7 @@ import { GameHeader } from '../components/GameHeader';
 import { NumberPad } from '../components/NumberPad';
 import { SudokuGrid } from '../components/SudokuGrid';
 import { Colors, FontSizes, Radius, Spacing } from '../constants/theme';
-import { useInterstitialAd, useRewardedAd } from '../hooks/useAdmob';
+import { useInterstitialAd, useRewardedAd } from '../hooks/useAdMob';
 import { useHaptics } from '../hooks/useHaptics';
 import { useStats } from '../hooks/useStats';
 import { useSudoku } from '../hooks/useSudoku';
