@@ -13,9 +13,12 @@ interface GameHeaderProps {
 }
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
+    beginner: 'Iniciante',
     easy: 'Fácil',
     medium: 'Médio',
     hard: 'Difícil',
+    expert: 'Expert',
+    master: 'Mestre',
 };
 
 export function GameHeader({

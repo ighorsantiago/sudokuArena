@@ -13,9 +13,27 @@ interface NumberPadProps {
     onToggleNotes: () => void;
     hintsLeft: number;
     onHint: () => void;
+    activeNumber: number | null;
+    onToggleActiveNumber: (num: number) => void;
+    getNumberCount: (num: number) => number;
 }
 
-export function NumberPad({ onNumber, onErase, onUndo, isNotesMode, onToggleNotes, hintsLeft, onHint }: NumberPadProps) {
+export function NumberPad({
+    onNumber,
+    onErase,
+    onUndo,
+    isNotesMode,
+    onToggleNotes,
+    hintsLeft,
+    onHint,
+    activeNumber,
+    onToggleActiveNumber,
+    getNumberCount,
+}: NumberPadProps) {
+
+    function handleNumberPress(num: number) {
+        onNumber(num);
+    }
     return (
         <View style={styles.container}>
 
@@ -77,16 +95,52 @@ export function NumberPad({ onNumber, onErase, onUndo, isNotesMode, onToggleNote
 
             {/* Números 1–9 */}
             <View style={styles.numbersRow}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                    <TouchableOpacity
-                        key={num}
-                        style={styles.numberButton}
-                        onPress={() => onNumber(num)}
-                        activeOpacity={0.6}
-                    >
-                        <Text style={styles.numberText}>{num}</Text>
-                    </TouchableOpacity>
-                ))}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => {
+                    const count = getNumberCount(num);
+                    const isComplete = count >= 9;
+                    const isActive = activeNumber === num;
+
+                    return (
+                        <TouchableOpacity
+                            key={num}
+                            style={[
+                                styles.numberButton,
+                                isActive && styles.numberButtonActive,
+                                isComplete && styles.numberButtonComplete,
+                            ]}
+                            onPress={() => {
+                                if (isComplete) return;
+                                handleNumberPress(num);
+                            }}
+                            onLongPress={() => {
+                                if (isComplete) return;
+                                onToggleActiveNumber(num);
+                            }}
+                            delayLongPress={300}
+                            activeOpacity={isComplete ? 1 : 0.6}
+                        >
+                            <Text style={[
+                                styles.numberText,
+                                isActive && styles.numberTextActive,
+                                isComplete && styles.numberTextComplete,
+                            ]}>
+                                {num}
+                            </Text>
+                            {/* Pontinhos indicando quantos já foram usados */}
+                            <View style={styles.dotsRow}>
+                                {count > 0 && Array.from({ length: Math.min(count, 9) }).map((_, i) => (
+                                    <View
+                                        key={i}
+                                        style={[
+                                            styles.dot,
+                                            isComplete ? styles.dotComplete : styles.dotActive,
+                                        ]}
+                                    />
+                                ))}
+                            </View>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
         </View>
@@ -123,6 +177,9 @@ const styles = StyleSheet.create({
     actionLabelActive: {
         color: Colors.secondary,
     },
+    actionLabelDim: {
+        color: Colors.textDim,
+    },
 
     // Badge ON/OFF
     badge: {
@@ -146,6 +203,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
 
+    // Badge dica
     hintBadge: {
         position: 'absolute',
         top: -6,
@@ -155,9 +213,8 @@ const styles = StyleSheet.create({
         paddingVertical: 1,
         borderRadius: 4,
     },
-    actionLabelDim: {
-        color: Colors.textDim,
-    },
+
+    // Números
     numbersRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -166,10 +223,44 @@ const styles = StyleSheet.create({
         width: NUM_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 4,
+    },
+    numberButtonActive: {
+        backgroundColor: Colors.selectedCell,
+        borderRadius: 8,
+    },
+    numberButtonComplete: {
+        opacity: 0.3,
     },
     numberText: {
         color: Colors.primary,
         fontSize: FontSizes.xxxl,
         fontWeight: 'bold',
+    },
+    numberTextActive: {
+        color: Colors.secondary,
+    },
+    numberTextComplete: {
+        color: Colors.textDim,
+    },
+
+    // Pontinhos de contagem
+    dotsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 2,
+        height: 8,
+    },
+    dot: {
+        width: 3,
+        height: 3,
+        borderRadius: 2,
+    },
+    dotActive: {
+        backgroundColor: Colors.primary,
+    },
+    dotComplete: {
+        backgroundColor: Colors.textDim,
     },
 });

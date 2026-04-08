@@ -84,15 +84,20 @@ export function SudokuGrid({
 // ─── Mini grade de anotações 3x3 ─────────────────────────────────────────────
 
 function NoteGrid({ notes, isSelected }: { notes: Set<number>; isSelected: boolean }) {
+    const rows = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
     return (
         <View style={styles.noteGrid}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                <View key={n} style={styles.noteCell}>
-                    {notes.has(n) && (
-                        <Text style={[styles.noteText, isSelected && styles.noteTextSelected]}>
-                            {n}
-                        </Text>
-                    )}
+            {rows.map((row, rowIndex) => (
+                <View key={rowIndex} style={styles.noteRow}>
+                    {row.map(n => (
+                        <View key={n} style={styles.noteCell}>
+                            {notes.has(n) && (
+                                <Text style={[styles.noteText, isSelected && styles.noteTextSelected]}>
+                                    {n}
+                                </Text>
+                            )}
+                        </View>
+                    ))}
                 </View>
             ))}
         </View>
@@ -174,13 +179,14 @@ const styles = StyleSheet.create({
     noteGrid: {
         width: CELL_SIZE - 2,
         height: CELL_SIZE - 2,
+        flexDirection: 'column',
+    },
+    noteRow: {
+        flex: 1,
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignContent: 'flex-start',
     },
     noteCell: {
-        width: (CELL_SIZE - 2) / 3,
-        height: (CELL_SIZE - 2) / 3,
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },

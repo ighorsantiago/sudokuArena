@@ -1,5 +1,5 @@
 export type Board = (number | null)[][];
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Difficulty = 'beginner' | 'easy' | 'medium' | 'hard' | 'expert' | 'master';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -79,9 +79,12 @@ function countSolutions(board: Board, limit = 2): number {
 }
 
 const CLUES: Record<Difficulty, number> = {
+    beginner: 45,
     easy: 38,
     medium: 30,
     hard: 24,
+    expert: 21,
+    master: 18,
 };
 
 export function generatePuzzle(difficulty: Difficulty): {

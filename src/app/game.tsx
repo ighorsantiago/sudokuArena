@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Modal,
     StyleSheet,
@@ -12,6 +13,7 @@ import { GameHeader } from '../components/GameHeader';
 import { NumberPad } from '../components/NumberPad';
 import { SudokuGrid } from '../components/SudokuGrid';
 import { Colors, FontSizes, Radius, Spacing } from '../constants/theme';
+import { useStats } from '../hooks/useStats';
 import { useSudoku } from '../hooks/useSudoku';
 import { Difficulty } from '../utils/sudoku';
 
@@ -23,6 +25,7 @@ export default function GameScreen() {
         board,
         notes,
         isNotesMode,
+        activeNumber,
         hintsLeft,
         pendingHint,
         selectedCell,
@@ -37,26 +40,46 @@ export default function GameScreen() {
         eraseCell,
         undo,
         toggleNotesMode,
+        toggleActiveNumber,
         requestHint,
         applyHint,
         dismissHint,
         getCellState,
         isRelatedCell,
         isSameNumber,
+        getNumberCount,
+        findFirstCellForNumber,
         formatTime,
         difficulty: currentDifficulty,
         isTimerRunning,
     } = useSudoku();
 
+    const { recordGameStarted, recordWin } = useStats();
+    const [isNewRecord, setIsNewRecord] = useState(false);
+
     useEffect(() => {
-        startGame(difficulty ?? 'medium');
+        const diff = difficulty ?? 'medium';
+        startGame(diff);
+        recordGameStarted(diff);
     }, []);
+
+    useEffect(() => {
+        console.log('[Game] isComplete mudou:', isComplete, 'errors:', errors, 'difficulty:', currentDifficulty);
+        if (isComplete) {
+            console.log('[Game] Chamando recordWin...');
+            recordWin(currentDifficulty, elapsedSeconds, errors).then(newRecord => {
+                console.log('[Game] recordWin retornou, isNewRecord:', newRecord);
+                setIsNewRecord(newRecord);
+            });
+        }
+    }, [isComplete]);
 
     function handleBack() {
         router.back();
     }
 
     function handleRestart() {
+        setIsNewRecord(false);
         startGame(currentDifficulty);
     }
 
@@ -101,6 +124,9 @@ export default function GameScreen() {
                     onToggleNotes={toggleNotesMode}
                     hintsLeft={hintsLeft}
                     onHint={requestHint}
+                    activeNumber={activeNumber}
+                    onToggleActiveNumber={toggleActiveNumber}
+                    getNumberCount={getNumberCount}
                 />
 
             </View>
@@ -128,6 +154,12 @@ export default function GameScreen() {
                     <View style={styles.modalBox}>
                         <Text style={styles.modalEmoji}>🏆</Text>
                         <Text style={styles.modalTitle}>PARABÉNS!</Text>
+                        {isNewRecord && (
+                            <View style={styles.newRecordBadge}>
+                                <Ionicons name="trophy-outline" size={14} color={Colors.background} />
+                                <Text style={styles.newRecordText}>NOVO RECORDE!</Text>
+                            </View>
+                        )}
                         <Text style={styles.modalSubtitle}>Puzzle concluído</Text>
 
                         <View style={styles.modalStats}>
@@ -224,6 +256,21 @@ const styles = StyleSheet.create({
         color: Colors.textMuted,
         fontSize: FontSizes.sm,
         letterSpacing: 1,
+    },
+    newRecordBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: Colors.primary,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.xs,
+        borderRadius: Radius.md,
+    },
+    newRecordText: {
+        color: Colors.background,
+        fontSize: FontSizes.xs,
+        fontWeight: 'bold',
+        letterSpacing: 2,
     },
 
     hintExplanation: {

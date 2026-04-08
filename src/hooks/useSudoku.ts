@@ -39,6 +39,7 @@ export interface GameState {
     hintsLeft: number;
     pendingHint: Hint | null;
     isNotesMode: boolean;
+    activeNumber: number | null;  // número-first mode
     selectedCell: { row: number; col: number } | null;
     errors: number;
     maxErrors: number;
@@ -60,6 +61,7 @@ export function useSudoku() {
         hintsLeft: 3,
         pendingHint: null,
         isNotesMode: false,
+        activeNumber: null,
         selectedCell: null,
         errors: 0,
         maxErrors: 3,
@@ -101,6 +103,7 @@ export function useSudoku() {
             hintsLeft: 3,
             pendingHint: null,
             isNotesMode: false,
+            activeNumber: null,
             selectedCell: null,
             errors: 0,
             maxErrors: 3,
@@ -118,11 +121,101 @@ export function useSudoku() {
         setState(prev => ({ ...prev, isNotesMode: !prev.isNotesMode }));
     }, []);
 
+    // ─── Toggle número ativo (number-first mode) ─────────────────────────────────
+
+    const toggleActiveNumber = useCallback((num: number) => {
+        setState(prev => {
+            const isDeactivating = prev.activeNumber === num;
+
+            if (isDeactivating) {
+                return { ...prev, activeNumber: null };
+            }
+
+            // Ao ativar, seleciona a primeira célula que já tem esse número no tabuleiro
+            let firstCell: { row: number; col: number } | null = null;
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (prev.board[r][c] === num) {
+                        firstCell = { row: r, col: c };
+                        break;
+                    }
+                }
+                if (firstCell) break;
+            }
+
+            return {
+                ...prev,
+                activeNumber: num,
+                selectedCell: firstCell ?? prev.selectedCell,
+            };
+        });
+    }, []);
+
     // ─── Selecionar célula ───────────────────────────────────────────────────────
 
     const selectCell = useCallback((row: number, col: number) => {
         setState(prev => {
             if (prev.isComplete || prev.isGameOver) return prev;
+
+            // Se há número ativo, insere direto na célula
+            if (prev.activeNumber !== null && prev.initialBoard[row][col] === null) {
+                const num = prev.activeNumber;
+                const snapshot = {
+                    board: prev.board.map(r => [...r]),
+                    notes: cloneNotes(prev.notes),
+                };
+
+                if (prev.isNotesMode) {
+                    if (prev.board[row][col] !== null) return { ...prev, selectedCell: { row, col } };
+                    const newNotes = cloneNotes(prev.notes);
+                    if (newNotes[row][col].has(num)) {
+                        newNotes[row][col].delete(num);
+                    } else {
+                        newNotes[row][col].add(num);
+                    }
+                    return { ...prev, notes: newNotes, selectedCell: { row, col }, history: snapshot };
+                }
+
+                const newBoard: Board = prev.board.map(r => [...r]);
+                newBoard[row][col] = num;
+                const valid = isCellValid(prev.board, row, col, num);
+                const newErrors = valid ? prev.errors : prev.errors + 1;
+                const isGameOver = newErrors >= prev.maxErrors;
+                const newNotes = cloneNotes(prev.notes);
+                newNotes[row][col] = new Set();
+                if (valid) {
+                    const related = getRelatedCells(row, col);
+                    for (const { row: rr, col: rc } of related) {
+                        newNotes[rr][rc].delete(num);
+                    }
+                }
+                if (!valid) {
+                    return {
+                        ...prev,
+                        board: newBoard,
+                        notes: newNotes,
+                        errors: newErrors,
+                        isGameOver,
+                        isComplete: false,
+                        isTimerRunning: !isGameOver,
+                        selectedCell: { row, col },
+                        history: snapshot,
+                    };
+                }
+                const complete = isBoardComplete(newBoard, prev.solution);
+                return {
+                    ...prev,
+                    board: newBoard,
+                    notes: newNotes,
+                    errors: newErrors,
+                    isComplete: complete,
+                    isGameOver: false,
+                    isTimerRunning: !complete,
+                    selectedCell: { row, col },
+                    history: snapshot,
+                };
+            }
+
             return { ...prev, selectedCell: { row, col } };
         });
     }, []);
@@ -326,6 +419,40 @@ export function useSudoku() {
         [state.board, state.selectedCell]
     );
 
+    // ─── Encontrar primeira célula disponível para um número ─────────────────────
+
+    const findFirstCellForNumber = useCallback((num: number): { row: number; col: number } | null => {
+        const { board, initialBoard } = state;
+        // Primeiro: célula vazia que pode receber o número
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                if (board[r][c] === null && initialBoard[r][c] === null) {
+                    return { row: r, col: c };
+                }
+            }
+        }
+        // Fallback: primeira célula que já tem esse número
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                if (board[r][c] === num) return { row: r, col: c };
+            }
+        }
+        return null;
+    }, [state.board, state.initialBoard]);
+
+    const getNumberCount = useCallback(
+        (num: number): number => {
+            let count = 0;
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (state.board[r][c] === num) count++;
+                }
+            }
+            return count;
+        },
+        [state.board]
+    );
+
     const formatTime = useCallback((seconds: number): string => {
         const m = Math.floor(seconds / 60).toString().padStart(2, '0');
         const s = (seconds % 60).toString().padStart(2, '0');
@@ -340,12 +467,15 @@ export function useSudoku() {
         eraseCell,
         undo,
         toggleNotesMode,
+        toggleActiveNumber,
         requestHint,
         applyHint,
         dismissHint,
         getCellState,
         isRelatedCell,
         isSameNumber,
+        getNumberCount,
+        findFirstCellForNumber,
         formatTime,
     };
 }
