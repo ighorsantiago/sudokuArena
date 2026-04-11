@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
     Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -10,249 +12,126 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdBanner } from '../components/AdBanner';
-import { GameHeader } from '../components/GameHeader';
-import { NumberPad } from '../components/NumberPad';
-import { SudokuGrid } from '../components/SudokuGrid';
 import { Colors, FontSizes, Radius, Spacing } from '../constants/theme';
-import { useInterstitialAd, useRewardedAd } from '../hooks/useAdMob';
-import { useHaptics } from '../hooks/useHaptics';
 import { useStats } from '../hooks/useStats';
-import { useSudoku } from '../hooks/useSudoku';
 import { Difficulty } from '../utils/sudoku';
 
-export default function GameScreen() {
+const DIFFICULTIES: { key: Difficulty; label: string; clues: number; emoji: string }[] = [
+    { key: 'beginner', label: 'Iniciante', clues: 45, emoji: '🟢' },
+    { key: 'easy', label: 'Fácil', clues: 38, emoji: '🔵' },
+    { key: 'medium', label: 'Médio', clues: 30, emoji: '🟡' },
+    { key: 'hard', label: 'Difícil', clues: 24, emoji: '🟠' },
+    { key: 'expert', label: 'Expert', clues: 21, emoji: '🔴' },
+    { key: 'master', label: 'Mestre', clues: 18, emoji: '⚫' },
+];
+
+export default function HomeScreen() {
     const router = useRouter();
-    const { difficulty } = useLocalSearchParams<{ difficulty: Difficulty }>();
+    const [showStats, setShowStats] = useState(false);
+    const { stats, getWinRate, formatBestTime, reloadStats } = useStats();
 
-    const {
-        board,
-        notes,
-        isNotesMode,
-        activeNumber,
-        hintsLeft,
-        pendingHint,
-        selectedCell,
-        errors,
-        maxErrors,
-        isComplete,
-        isGameOver,
-        elapsedSeconds,
-        startGame,
-        selectCell,
-        insertNumber,
-        eraseCell,
-        undo,
-        toggleNotesMode,
-        toggleActiveNumber,
-        requestHint,
-        applyHint,
-        dismissHint,
-        continueAfterGameOver,
-        getCellState,
-        isRelatedCell,
-        isSameNumber,
-        getNumberCount,
-        findFirstCellForNumber,
-        formatTime,
-        difficulty: currentDifficulty,
-        isTimerRunning,
-    } = useSudoku();
-
-    const { recordGameStarted, recordWin } = useStats();
-    const { vibrateError, vibrateSuccess } = useHaptics();
-    const [isNewRecord, setIsNewRecord] = useState(false);
-
-    const { onGameStarted } = useInterstitialAd();
-
-    // Rewarded para continuar após game over
-    const { showAd: showContinueAd, loaded: continueAdLoaded } = useRewardedAd(
+    useFocusEffect(
         useCallback(() => {
-            continueAfterGameOver();
-        }, [continueAfterGameOver])
+            reloadStats();
+        }, [reloadStats])
     );
 
-    // Rewarded para dica extra
-    const { showAd: showHintAd, loaded: hintAdLoaded } = useRewardedAd(
-        useCallback(() => {
-            requestHint();
-        }, [requestHint])
-    );
-
-    useEffect(() => {
-        const diff = difficulty ?? 'medium';
-        startGame(diff);
-        recordGameStarted(diff);
-        onGameStarted();
-    }, []);
-
-    useEffect(() => {
-        if (errors > 0) vibrateError();
-    }, [errors]);
-
-    useEffect(() => {
-        console.log('[Game] isComplete mudou:', isComplete, 'errors:', errors, 'difficulty:', currentDifficulty);
-        if (isComplete) {
-            vibrateSuccess();
-            console.log('[Game] Chamando recordWin...');
-            recordWin(currentDifficulty, elapsedSeconds, errors).then(newRecord => {
-                console.log('[Game] recordWin retornou, isNewRecord:', newRecord);
-                setIsNewRecord(newRecord);
-            });
-        }
-    }, [isComplete]);
-
-    useEffect(() => {
-        if (isGameOver) vibrateError();
-    }, [isGameOver]);
-
-    function handleBack() {
-        router.back();
-    }
-
-    function handleRestart() {
-        setIsNewRecord(false);
-        startGame(currentDifficulty);
-        onGameStarted();
-    }
-
-    function handleNewGame() {
-        router.back();
-    }
-
-    function handleContinue() {
-        if (continueAdLoaded) {
-            showContinueAd();
-        } else {
-            continueAfterGameOver();
-        }
+    function handlePlay(difficulty: Difficulty) {
+        router.push({ pathname: '/game', params: { difficulty } });
     }
 
     return (
         <SafeAreaView style={styles.safe}>
-            <View style={styles.container}>
-
-                {/* Header */}
-                <GameHeader
-                    difficulty={currentDifficulty}
-                    errors={errors}
-                    maxErrors={maxErrors}
-                    elapsedSeconds={elapsedSeconds}
-                    isTimerRunning={isTimerRunning}
-                    formatTime={formatTime}
-                    onBack={handleBack}
-                />
-
-                {/* Grid */}
-                <View style={styles.gridWrapper}>
-                    <SudokuGrid
-                        board={board}
-                        notes={notes}
-                        selectedCell={selectedCell}
-                        getCellState={getCellState}
-                        isRelatedCell={isRelatedCell}
-                        isSameNumber={isSameNumber}
-                        onSelectCell={selectCell}
-                    />
+            <ScrollView
+                contentContainerStyle={styles.container}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Logo */}
+                <View style={styles.logoArea}>
+                    <Text style={styles.titleLine1}>SUDOKU</Text>
+                    <Text style={styles.titleLine2}>ARENA</Text>
+                    <View style={styles.titleDivider} />
+                    <Text style={styles.tagline}>LÓGICA  ·  ESTRATÉGIA  ·  DESAFIO</Text>
                 </View>
 
-                {/* NumberPad */}
-                <NumberPad
-                    onNumber={insertNumber}
-                    onErase={eraseCell}
-                    onUndo={undo}
-                    isNotesMode={isNotesMode}
-                    onToggleNotes={toggleNotesMode}
-                    hintsLeft={hintsLeft}
-                    onHint={hintsLeft > 0 ? requestHint : showHintAd}
-                    hintAdAvailable={hintsLeft === 0 && hintAdLoaded}
-                    activeNumber={activeNumber}
-                    onToggleActiveNumber={toggleActiveNumber}
-                    getNumberCount={getNumberCount}
-                />
-
-                {/* Banner */}
-                <AdBanner />
-
-            </View>
-
-            {/* Modal de dica */}
-            <Modal visible={!!pendingHint} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalBox}>
-                        <Text style={styles.modalEmoji}>💡</Text>
-                        <Text style={styles.modalTitle}>DICA</Text>
-                        <Text style={styles.hintExplanation}>{pendingHint?.explanation}</Text>
+                {/* Dificuldades */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>ESCOLHA A DIFICULDADE</Text>
+                    {DIFFICULTIES.map(d => (
                         <TouchableOpacity
-                            style={styles.modalButtonPrimary}
-                            onPress={applyHint}
+                            key={d.key}
+                            style={styles.diffButton}
+                            onPress={() => handlePlay(d.key)}
+                            activeOpacity={0.8}
                         >
-                            <Text style={styles.modalButtonPrimaryText}>ENTENDIDO</Text>
+                            <Text style={styles.diffEmoji}>{d.emoji}</Text>
+                            <View style={styles.diffInfo}>
+                                <Text style={styles.diffLabel}>{d.label}</Text>
+                                <Text style={styles.diffClues}>{d.clues} pistas</Text>
+                            </View>
+                            <Text style={styles.arrow}>›</Text>
                         </TouchableOpacity>
-                    </View>
+                    ))}
                 </View>
-            </Modal>
 
-            {/* Modal de vitória */}
-            <Modal visible={isComplete} transparent animationType="fade">
+                {/* Botão stats */}
+                <TouchableOpacity
+                    style={styles.statsButton}
+                    onPress={() => setShowStats(true)}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="bar-chart-outline" size={16} color={Colors.textMuted} />
+                    <Text style={styles.statsButtonText}>ESTATÍSTICAS</Text>
+                </TouchableOpacity>
+
+                {/* Rodapé */}
+                <Text style={styles.footer}>ARENA GAMES</Text>
+
+            </ScrollView>
+
+            {/* Banner */}
+            <AdBanner />
+
+            {/* Modal de estatísticas */}
+            <Modal visible={showStats} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalBox}>
-                        <Text style={styles.modalEmoji}>🏆</Text>
-                        <Text style={styles.modalTitle}>PARABÉNS!</Text>
-                        {isNewRecord && (
-                            <View style={styles.newRecordBadge}>
-                                <Ionicons name="trophy-outline" size={14} color={Colors.background} />
-                                <Text style={styles.newRecordText}>NOVO RECORDE!</Text>
-                            </View>
-                        )}
-                        <Text style={styles.modalSubtitle}>Puzzle concluído</Text>
 
-                        <View style={styles.modalStats}>
-                            <View style={styles.modalStatItem}>
-                                <Text style={styles.modalStatLabel}>Tempo</Text>
-                                <Text style={styles.modalStatValue}>{formatTime(elapsedSeconds)}</Text>
-                            </View>
-                            <View style={styles.modalDivider} />
-                            <View style={styles.modalStatItem}>
-                                <Text style={styles.modalStatLabel}>Erros</Text>
-                                <Text style={styles.modalStatValue}>{errors}/{maxErrors}</Text>
-                            </View>
+                        <Text style={styles.modalTitle}>ESTATÍSTICAS</Text>
+
+                        <View style={styles.statsGrid}>
+                            {DIFFICULTIES.map(d => {
+                                const s = stats[d.key];
+                                return (
+                                    <View key={d.key} style={styles.statRow}>
+                                        <Text style={styles.statDiff}>
+                                            {d.emoji} {d.label}
+                                        </Text>
+                                        <View style={styles.statValues}>
+                                            <Text style={styles.statValue}>
+                                                {s.gamesWon}/{s.gamesStarted}
+                                            </Text>
+                                            <Text style={styles.statSub}>
+                                                {getWinRate(d.key)}% vitórias
+                                            </Text>
+                                            {s.bestTime !== null && (
+                                                <Text style={styles.statSub}>
+                                                    ⏱ {formatBestTime(d.key)}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            })}
                         </View>
 
-                        <TouchableOpacity style={styles.modalButtonPrimary} onPress={handleRestart}>
-                            <Text style={styles.modalButtonPrimaryText}>JOGAR NOVAMENTE</Text>
+                        <TouchableOpacity
+                            style={styles.buttonPrimary}
+                            onPress={() => setShowStats(false)}
+                        >
+                            <Text style={styles.buttonPrimaryText}>FECHAR</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.modalButtonSecondary} onPress={handleNewGame}>
-                            <Text style={styles.modalButtonSecondaryText}>MENU PRINCIPAL</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Modal de game over */}
-            <Modal visible={isGameOver} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalBox}>
-                        <Text style={styles.modalEmoji}>💀</Text>
-                        <Text style={[styles.modalTitle, styles.modalTitleError]}>GAME OVER</Text>
-                        <Text style={styles.modalSubtitle}>Você cometeu {maxErrors} erros</Text>
-
-                        <TouchableOpacity style={styles.modalButtonContinue} onPress={handleContinue}>
-                            <View style={styles.continueButtonContent}>
-                                <Ionicons name="play-circle-outline" size={20} color={Colors.background} />
-                                <Text style={styles.modalButtonContinueText}>CONTINUAR</Text>
-                                <Ionicons name="videocam-outline" size={16} color={Colors.background} />
-                            </View>
-                            <Text style={styles.continueSubtext}>Assista um anúncio para continuar</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.modalButtonPrimary} onPress={handleRestart}>
-                            <Text style={styles.modalButtonPrimaryText}>TENTAR NOVAMENTE</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.modalButtonSecondary} onPress={handleNewGame}>
-                            <Text style={styles.modalButtonSecondaryText}>MENU PRINCIPAL</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -267,15 +146,95 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
     },
     container: {
+        alignItems: 'center',
+        paddingHorizontal: Spacing.xl,
+        paddingVertical: Spacing.xxl,
+        gap: Spacing.xl,
+    },
+    logoArea: {
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    titleLine1: {
+        color: Colors.primary,
+        fontSize: FontSizes.xxxl,
+        fontWeight: 'bold',
+        letterSpacing: 8,
+        lineHeight: FontSizes.xxxl,
+    },
+    titleLine2: {
+        color: Colors.secondary,
+        fontSize: FontSizes.xxl,
+        fontWeight: 'bold',
+        letterSpacing: 10,
+        lineHeight: FontSizes.xxl * 1.4,
+    },
+    titleDivider: {
+        width: 220,
+        height: 1,
+        backgroundColor: Colors.primary,
+        marginVertical: Spacing.xs,
+    },
+    tagline: {
+        color: Colors.textMuted,
+        fontSize: FontSizes.xs,
+        letterSpacing: 2,
+    },
+    section: {
+        width: '100%',
+        gap: Spacing.sm,
+    },
+    sectionTitle: {
+        color: Colors.textMuted,
+        fontSize: FontSizes.xs,
+        letterSpacing: 2,
+        marginBottom: Spacing.xs,
+    },
+    diffButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.surface,
+        borderRadius: Radius.md,
+        padding: Spacing.md,
+        borderWidth: 1,
+        borderColor: Colors.borderSubtle,
+        gap: Spacing.md,
+    },
+    diffEmoji: {
+        fontSize: 22,
+    },
+    diffInfo: {
         flex: 1,
-        justifyContent: 'space-evenly',
-        paddingVertical: Spacing.sm,
     },
-    gridWrapper: {
-        paddingHorizontal: Spacing.lg,
+    diffLabel: {
+        color: Colors.text,
+        fontSize: FontSizes.md,
+        fontWeight: '700',
     },
-
-    // Modal compartilhado
+    diffClues: {
+        color: Colors.textMuted,
+        fontSize: FontSizes.xs,
+        marginTop: 2,
+    },
+    arrow: {
+        color: Colors.textMuted,
+        fontSize: 24,
+    },
+    statsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+    },
+    statsButtonText: {
+        color: Colors.textMuted,
+        fontSize: FontSizes.xs,
+        letterSpacing: 2,
+    },
+    footer: {
+        color: Colors.textDim,
+        fontSize: FontSizes.xs,
+        letterSpacing: 3,
+    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.85)',
@@ -290,134 +249,56 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: Colors.primary,
         padding: Spacing.xl,
-        alignItems: 'center',
         gap: Spacing.md,
-    },
-    modalEmoji: {
-        fontSize: 56,
     },
     modalTitle: {
         color: Colors.primary,
-        fontSize: FontSizes.xxl,
+        fontSize: FontSizes.lg,
         fontWeight: 'bold',
         letterSpacing: 4,
+        textAlign: 'center',
     },
-    modalTitleError: {
-        color: Colors.error,
+    statsGrid: {
+        gap: Spacing.sm,
     },
-    modalSubtitle: {
-        color: Colors.textMuted,
-        fontSize: FontSizes.sm,
-        letterSpacing: 1,
-    },
-    newRecordBadge: {
+    statRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: Colors.primary,
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.xs,
-        borderRadius: Radius.md,
-    },
-    newRecordText: {
-        color: Colors.background,
-        fontSize: FontSizes.xs,
-        fontWeight: 'bold',
-        letterSpacing: 2,
-    },
-
-    hintExplanation: {
-        color: Colors.text,
-        fontSize: FontSizes.sm,
-        textAlign: 'center',
-        lineHeight: 22,
-        paddingHorizontal: Spacing.sm,
-        marginVertical: Spacing.sm,
-    },
-    modalStats: {
-        flexDirection: 'row',
+        justifyContent: 'space-between',
         backgroundColor: Colors.background,
         borderRadius: Radius.md,
         padding: Spacing.md,
-        width: '100%',
-        justifyContent: 'center',
-        marginVertical: Spacing.sm,
     },
-    modalStatItem: {
+    statDiff: {
+        color: Colors.text,
+        fontSize: FontSizes.sm,
+        fontWeight: '600',
         flex: 1,
-        alignItems: 'center',
-        gap: 4,
     },
-    modalStatLabel: {
+    statValues: {
+        alignItems: 'flex-end',
+        gap: 2,
+    },
+    statValue: {
+        color: Colors.primary,
+        fontSize: FontSizes.md,
+        fontWeight: 'bold',
+    },
+    statSub: {
         color: Colors.textMuted,
         fontSize: FontSizes.xs,
-        letterSpacing: 1,
-        textTransform: 'uppercase',
     },
-    modalStatValue: {
-        color: Colors.text,
-        fontSize: FontSizes.lg,
-        fontWeight: 'bold',
-    },
-    modalDivider: {
-        width: 1,
-        backgroundColor: Colors.borderSubtle,
-        marginHorizontal: Spacing.md,
-    },
-
-    // Botões do modal
-    modalButtonContinue: {
-        width: '100%',
-        backgroundColor: Colors.secondary,
-        borderRadius: Radius.md,
-        paddingVertical: Spacing.md,
-        alignItems: 'center',
-        gap: 4,
-    },
-    continueButtonContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    modalButtonContinueText: {
-        color: Colors.background,
-        fontSize: FontSizes.sm,
-        fontWeight: 'bold',
-        letterSpacing: 2,
-    },
-    continueSubtext: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: FontSizes.xs,
-        letterSpacing: 0.5,
-    },
-    modalButtonPrimary: {
-        width: '100%',
+    buttonPrimary: {
         height: 52,
         backgroundColor: Colors.primary,
         borderRadius: Radius.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    modalButtonPrimaryText: {
+    buttonPrimaryText: {
         color: Colors.background,
         fontSize: FontSizes.sm,
         fontWeight: 'bold',
-        letterSpacing: 2,
-    },
-    modalButtonSecondary: {
-        width: '100%',
-        height: 52,
-        backgroundColor: 'transparent',
-        borderRadius: Radius.md,
-        borderWidth: 1,
-        borderColor: Colors.borderSubtle,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    modalButtonSecondaryText: {
-        color: Colors.textMuted,
-        fontSize: FontSizes.sm,
-        fontWeight: '600',
         letterSpacing: 2,
     },
 });
